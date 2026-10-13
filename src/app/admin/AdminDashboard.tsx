@@ -9,52 +9,6 @@ import { useAppStore } from '@/lib/store'
 import { useSound } from '@/hooks/useSound'
 import { FONT_OPTIONS } from '@/components/FontSelector'
 
-// Smart upload: tries local server first, falls back to direct browser-to-cloud upload.
-// On Vercel, the server can't write to disk, so we upload directly from the browser
-// to a free file hosting service (catbox.moe). This bypasses Vercel's read-only filesystem.
-async function smartUpload(file: File): Promise<string> {
-  // Try 1: Local server upload (works on localhost)
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
-    const res = await fetch('/api/upload', { method: 'POST', body: formData })
-    const data = await res.json()
-    if (data.success && data.url) return data.url
-  } catch {}
-
-  // Try 2: Direct browser upload to catbox.moe (permanent, free, no signup)
-  try {
-    const form = new FormData()
-    form.append('reqtype', 'fileupload')
-    form.append('fileToUpload', file)
-    const res = await fetch('https://catbox.moe/user/api.php', {
-      method: 'POST',
-      body: form,
-    })
-    if (res.ok) {
-      const url = await res.text()
-      if (url.startsWith('https://')) return url.trim()
-    }
-  } catch {}
-
-  // Try 3: Litterbox (temporary hosting, 72h)
-  try {
-    const form = new FormData()
-    form.append('reqtype', 'fileupload')
-    form.append('time', '72h')
-    form.append('fileToUpload', file)
-    const res = await fetch('https://litterbox.catbox.moe/resources/internals/api.php', {
-      method: 'POST',
-      body: form,
-    })
-    if (res.ok) {
-      const url = await res.text()
-      if (url.startsWith('https://')) return url.trim()
-    }
-  } catch {}
-
-  throw new Error('All upload methods failed. Please paste a URL instead.')
-}
 
 
 export default function AdminDashboard({ profiles, videos, categories }: any) {
@@ -110,11 +64,22 @@ function ProfilesTab({ profiles }: { profiles: any[] }) {
     if (!file) return
 
     setUploading(true)
+    const formData = new FormData()
+    formData.append('file', file)
+
     try {
-      const url = await smartUpload(file)
-      setAvatarUrl(url)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (data.success && data.url) {
+        setAvatarUrl(data.url)
+      } else {
+        alert('Upload failed: ' + (data.error || 'Server error'))
+      }
     } catch (error: any) {
-      alert('Upload failed: ' + (error.message || 'Unknown error'))
+      alert('Upload error: ' + (error.message || 'Network error'))
     } finally {
       setUploading(false)
     }
@@ -223,12 +188,23 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
     if (type === 'thumbnail') setUploadingThumb(true)
     if (type === 'video') setUploadingVideo(true)
 
+    const formData = new FormData()
+    formData.append('file', file)
+
     try {
-      const url = await smartUpload(file)
-      if (type === 'thumbnail') setThumbnailUrl(url)
-      if (type === 'video') setVideoUrl(url)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (data.success && data.url) {
+        if (type === 'thumbnail') setThumbnailUrl(data.url)
+        if (type === 'video') setVideoUrl(data.url)
+      } else {
+        alert('Upload failed: ' + (data.error || 'Server error'))
+      }
     } catch (error: any) {
-      alert('Upload failed: ' + (error.message || 'Unknown error'))
+      alert('Upload error: ' + (error.message || 'Network error'))
     } finally {
       if (type === 'thumbnail') setUploadingThumb(false)
       if (type === 'video') setUploadingVideo(false)
