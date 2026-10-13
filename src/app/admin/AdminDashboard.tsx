@@ -63,6 +63,11 @@ function ProfilesTab({ profiles }: { profiles: any[] }) {
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (file.size > 4.5 * 1024 * 1024) {
+      alert('Photo exceeds 4.5MB limit. Please choose a smaller image (under 4.5MB).')
+      return
+    }
+
     setUploading(true)
     const formData = new FormData()
     formData.append('file', file)
@@ -72,6 +77,13 @@ function ProfilesTab({ profiles }: { profiles: any[] }) {
         method: 'POST',
         body: formData
       })
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error('Photo file is too large for serverless upload (max 4.5MB).')
+        }
+        const text = await res.text()
+        throw new Error(text || `Server error (${res.status})`)
+      }
       const data = await res.json()
       if (data.success && data.url) {
         setAvatarUrl(data.url)
@@ -185,6 +197,20 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (file.size > 4.5 * 1024 * 1024) {
+      if (type === 'video') {
+        alert(
+          'Video file is larger than 4.5MB (Vercel serverless upload limit).\n\n' +
+          'For large videos:\n' +
+          '1. Paste an unlisted YouTube link, Google Drive direct link, or CDN link into the "Video URL" box below.\n' +
+          '2. The player will automatically play it in full HD!'
+        )
+      } else {
+        alert('Thumbnail image exceeds 4.5MB limit. Please choose a smaller image (under 4.5MB).')
+      }
+      return
+    }
+
     if (type === 'thumbnail') setUploadingThumb(true)
     if (type === 'video') setUploadingVideo(true)
 
@@ -196,6 +222,13 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
         method: 'POST',
         body: formData
       })
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error('File exceeds Vercel 4.5MB limit. Please paste a video URL instead.')
+        }
+        const text = await res.text()
+        throw new Error(text || `Server error (${res.status})`)
+      }
       const data = await res.json()
       if (data.success && data.url) {
         if (type === 'thumbnail') setThumbnailUrl(data.url)
@@ -261,7 +294,7 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
             <label className="block text-sm mb-1 text-gray-400">Video (URL, YouTube or Upload Video)</label>
             <div className="flex gap-2">
               <input 
-                required placeholder="Video URL or click Upload" className="p-2 bg-[#333] rounded flex-1 text-white border-none"
+                required placeholder="Paste YouTube link, direct MP4 link, or click Upload" className="p-2 bg-[#333] rounded flex-1 text-white border-none text-sm"
                 value={videoUrl} onChange={e => setVideoUrl(e.target.value)}
               />
               <input type="file" accept="video/*" className="hidden" id="video-upload" onChange={e => handleUpload(e, 'video')} />
@@ -270,6 +303,7 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
                 {uploadingVideo ? 'Uploading...' : 'Upload Video'}
               </label>
             </div>
+            <p className="text-xs text-gray-400 mt-1">Direct upload supports files up to 4.5MB. For larger videos, paste an unlisted YouTube link or direct video URL.</p>
           </div>
         </div>
 
