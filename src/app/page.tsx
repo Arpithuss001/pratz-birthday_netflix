@@ -50,6 +50,16 @@ export default function LandingPage() {
         <img src="/netflix-logo.png" alt="Netflix" className="h-11 md:h-14 object-contain drop-shadow-md" />
       </div>
 
+      {/* Top Right Admin Button */}
+      <div className="absolute top-6 right-6 md:right-12 z-10">
+        <button
+          onClick={() => { playPop(); router.push('/admin'); }}
+          className="bg-[#E50914] hover:bg-[#c10710] text-white px-4 py-2 rounded font-bold text-sm transition-colors shadow-lg flex items-center gap-1.5 cursor-pointer"
+        >
+          Admin Access
+        </button>
+      </div>
+
       <div className="z-10 w-full max-w-md p-10 bg-black/80 rounded-md mt-10">
         <h1 className="text-3xl font-bold mb-8 text-white">Sign In</h1>
         <form onSubmit={handleLogin} className="flex flex-col gap-4">

@@ -43,37 +43,46 @@ export default function ProfilesClient({ initialProfiles }: { initialProfiles: P
   }
 
   return (
-    <div className="flex flex-wrap justify-center gap-8">
-      {initialProfiles.map((profile) => (
+    <div className="flex flex-col items-center">
+      <div className="flex flex-wrap justify-center gap-8 mb-12">
+        {initialProfiles.map((profile) => (
+          <div 
+            key={profile.id} 
+            className="flex flex-col items-center group cursor-pointer"
+            onClick={() => handleSelect(profile)}
+          >
+            <div className="w-32 h-32 md:w-40 md:h-40 rounded-md overflow-hidden border-[3px] border-transparent group-hover:border-white transition-all">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src={profile.avatarUrl || '/placeholder.png'} 
+                alt={profile.name} 
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <span className="mt-4 text-gray-400 group-hover:text-white transition-colors text-xl">
+              {profile.name}
+            </span>
+          </div>
+        ))}
         <div 
-          key={profile.id} 
           className="flex flex-col items-center group cursor-pointer"
-          onClick={() => handleSelect(profile)}
+          onClick={handleAddProfile}
         >
-          <div className="w-32 h-32 md:w-40 md:h-40 rounded-md overflow-hidden border-[3px] border-transparent group-hover:border-white transition-all">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={profile.avatarUrl || '/placeholder.png'} 
-              alt={profile.name} 
-              className="w-full h-full object-cover"
-            />
+          <div className="w-32 h-32 md:w-40 md:h-40 flex items-center justify-center rounded-md border-[3px] border-transparent group-hover:border-white transition-all bg-[#333]">
+            <PlusCircle className="w-16 h-16 text-gray-400 group-hover:text-white transition-colors" />
           </div>
           <span className="mt-4 text-gray-400 group-hover:text-white transition-colors text-xl">
-            {profile.name}
+            Add Profile
           </span>
         </div>
-      ))}
-      <div 
-        className="flex flex-col items-center group cursor-pointer"
-        onClick={handleAddProfile}
-      >
-        <div className="w-32 h-32 md:w-40 md:h-40 flex items-center justify-center rounded-md border-[3px] border-transparent group-hover:border-white transition-all bg-[#333]">
-          <PlusCircle className="w-16 h-16 text-gray-400 group-hover:text-white transition-colors" />
-        </div>
-        <span className="mt-4 text-gray-400 group-hover:text-white transition-colors text-xl">
-          Add Profile
-        </span>
       </div>
+
+      <button
+        onClick={handleAddProfile}
+        className="border border-gray-600 text-gray-400 hover:text-white hover:border-white px-8 py-2 text-sm tracking-widest uppercase transition-all duration-200 cursor-pointer hover:bg-white/5"
+      >
+        Manage Profiles (Admin)
+      </button>
     </div>
   )
 }
