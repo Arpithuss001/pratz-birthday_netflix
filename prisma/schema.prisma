@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  name      String
+  avatarUrl String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String          @id @default(uuid())
+  name      String
+  order     Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  videos    CategoryVideo[]
+}
+
+model Video {
+  id           String          @id @default(uuid())
+  title        String
+  description  String
+  thumbnailUrl String
+  videoUrl     String
+  genre        String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  categories   CategoryVideo[]
+}
+
+model CategoryVideo {
+  id         String   @id @default(uuid())
+  categoryId String
+  videoId    String
+  order      Int      @default(0)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, videoId])
+}

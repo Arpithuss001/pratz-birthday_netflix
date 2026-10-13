@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-netflix-red: #E50914;
+  --color-netflix-black: #141414;
+  --color-netflix-dark: #181818;
+  --animate-zoom-in: zoom-in 3.5s ease-in-out forwards;
+  
+  @keyframes zoom-in {
+    0% {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    100% {
+      transform: scale(2.5);
+      opacity: 0;
+    }
+  }
+}
+
+@layer base {
+  body {
+    background-color: #141414;
+    color: white;
+    font-family: 'Inter', Arial, Helvetica, sans-serif;
+  }
+}
+
+/* Custom Font Styles */
+.font-bebas { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+.font-anton { font-family: 'Anton', sans-serif; letter-spacing: 0.03em; }
+.font-montserrat { font-family: 'Montserrat', sans-serif; }
+.font-oswald { font-family: 'Oswald', sans-serif; letter-spacing: 0.02em; }
+.font-righteous { font-family: 'Righteous', cursive; }
+.font-playfair { font-family: 'Playfair Display', serif; }
+.font-inter { font-family: 'Inter', sans-serif; }
+
+/* Hide scrollbars everywhere needed */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
