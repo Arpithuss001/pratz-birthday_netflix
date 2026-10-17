@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <rect width="640" height="360" fill="#181818"/>
+  <rect x="2" y="2" width="636" height="356" fill="none" stroke="#2a2a2a" stroke-width="2"/>
+  <g transform="translate(320, 160)" text-anchor="middle">
+    <rect x="-30" y="-30" width="60" height="60" rx="12" fill="#242424" stroke="#333333" stroke-width="1.5"/>
+    <path d="M-10 -15 L14 0 L-10 15 Z" fill="#E50914"/>
+    <text y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#888888">
+      Birthday Memory
+    </text>
+  </g>
+</svg>

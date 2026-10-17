@@ -113,6 +113,12 @@ export default function Navbar() {
             <img 
               src={currentProfile?.avatarUrl || '/placeholder.png'} 
               alt="Profile" 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                if (!target.src.endsWith('/placeholder.png')) {
+                  target.src = '/placeholder.png'
+                }
+              }}
               className="w-8 h-8 rounded object-cover ring-1 ring-white/20 hover:ring-white transition"
             />
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />

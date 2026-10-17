@@ -56,6 +56,12 @@ export default function ProfilesClient({ initialProfiles }: { initialProfiles: P
               <img 
                 src={profile.avatarUrl || '/placeholder.png'} 
                 alt={profile.name} 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  if (!target.src.endsWith('/placeholder.png')) {
+                    target.src = '/placeholder.png'
+                  }
+                }}
                 className="w-full h-full object-cover"
               />
             </div>

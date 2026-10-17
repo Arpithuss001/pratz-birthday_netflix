@@ -4,12 +4,69 @@ import { useState } from 'react'
 import { createProfile, deleteProfile } from '@/actions/profile'
 import { createCategory, deleteCategory } from '@/actions/category'
 import { createVideo, deleteVideo, updateVideo, toggleVideoCategory } from '@/actions/video'
-import { Trash2, Star, Check, Type, Upload } from 'lucide-react'
+import { Trash2, Star, Check, Type, Upload, Loader2, Image as ImageIcon } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { useSound } from '@/hooks/useSound'
 import { FONT_OPTIONS } from '@/components/FontSelector'
 
+// Client-side image compression to guarantee tiny payload, fast uploads, and sharp thumbnails
+async function compressImage(file: File, maxDimension = 1280, quality = 0.85): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
+    return file
+  }
 
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        let width = img.width
+        let height = img.height
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width)
+            width = maxDimension
+          } else {
+            width = Math.round((width * maxDimension) / height)
+            height = maxDimension
+          }
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(file)
+          return
+        }
+
+        ctx.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file)
+              return
+            }
+            const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.jpg'
+            const compressed = new File([blob], cleanName, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            })
+            resolve(compressed)
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+      img.onerror = () => resolve(file)
+      img.src = e.target?.result as string
+    }
+    reader.onerror = () => resolve(file)
+    reader.readAsDataURL(file)
+  })
+}
 
 export default function AdminDashboard({ profiles, videos, categories }: any) {
   const [activeTab, setActiveTab] = useState<'profiles'|'videos'|'categories'|'fonts'>('videos')
@@ -60,27 +117,20 @@ function ProfilesTab({ profiles }: { profiles: any[] }) {
   const [uploading, setUploading] = useState(false)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+    let file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 4.5 * 1024 * 1024) {
-      alert('Photo exceeds 4.5MB limit. Please choose a smaller image (under 4.5MB).')
-      return
-    }
-
     setUploading(true)
-    const formData = new FormData()
-    formData.append('file', file)
-
     try {
+      file = await compressImage(file)
+      const formData = new FormData()
+      formData.append('file', file)
+
       const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData
       })
       if (!res.ok) {
-        if (res.status === 413) {
-          throw new Error('Photo file is too large for serverless upload (max 4.5MB).')
-        }
         const text = await res.text()
         throw new Error(text || `Server error (${res.status})`)
       }
@@ -94,6 +144,7 @@ function ProfilesTab({ profiles }: { profiles: any[] }) {
       alert('Upload error: ' + (error.message || 'Network error'))
     } finally {
       setUploading(false)
+      e.target.value = ''
     }
   }
 
@@ -108,23 +159,49 @@ function ProfilesTab({ profiles }: { profiles: any[] }) {
     <div>
       <h2 className="text-xl font-bold mb-4">Add Profile</h2>
       <form onSubmit={handleCreate} className="flex flex-col gap-4 mb-8 bg-[#222] p-4 rounded">
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-col sm:flex-row">
           <input 
             required placeholder="Name" className="p-2 bg-[#333] rounded flex-1 text-white border-none"
             value={name} onChange={e => setName(e.target.value)}
           />
           <div className="flex flex-1 gap-2">
             <input 
-              placeholder="Avatar URL" className="p-2 bg-[#333] rounded flex-1 text-white border-none"
+              placeholder="Avatar URL" className="p-2 bg-[#333] rounded flex-1 text-white border-none text-sm"
               value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)}
             />
             <input type="file" accept="image/*" className="hidden" id="avatar-upload" onChange={handleUpload} />
             <label htmlFor="avatar-upload" className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded cursor-pointer whitespace-nowrap text-sm flex items-center gap-1.5 transition">
-              <Upload className="w-4 h-4" />
-              {uploading ? 'Uploading...' : 'Upload Photo'}
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Upload className="w-4 h-4" />}
+              {uploading ? 'Compressing & Uploading...' : 'Upload Photo'}
             </label>
           </div>
         </div>
+
+        {avatarUrl && (
+          <div className="flex items-center gap-3 bg-[#1a1a1a] p-2 rounded w-fit border border-gray-700">
+            <span className="text-xs text-gray-400">Preview:</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src={avatarUrl} 
+              alt="Avatar preview" 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                if (!target.src.endsWith('/placeholder.png')) {
+                  target.src = '/placeholder.png'
+                }
+              }}
+              className="w-10 h-10 rounded-full object-cover border border-gray-600 bg-black"
+            />
+            <button 
+              type="button" 
+              onClick={() => setAvatarUrl('')} 
+              className="text-xs text-red-400 hover:text-red-300 ml-2"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
         <button type="submit" className="bg-[#E50914] px-4 py-2 rounded font-bold text-white w-full max-w-xs self-end hover:bg-[#c10710] transition">Add Profile</button>
       </form>
 
@@ -134,10 +211,20 @@ function ProfilesTab({ profiles }: { profiles: any[] }) {
           <div key={p.id} className="bg-[#222] p-4 rounded flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.avatarUrl || '/placeholder.png'} alt={p.name} className="w-10 h-10 rounded object-cover" />
-              <span>{p.name}</span>
+              <img 
+                src={p.avatarUrl || '/placeholder.png'} 
+                alt={p.name} 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  if (!target.src.endsWith('/placeholder.png')) {
+                    target.src = '/placeholder.png'
+                  }
+                }}
+                className="w-10 h-10 rounded object-cover bg-black" 
+              />
+              <span className="truncate max-w-[100px]">{p.name}</span>
             </div>
-            <button onClick={() => deleteProfile(p.id)} className="text-red-500 hover:text-red-400">
+            <button onClick={() => deleteProfile(p.id)} className="text-red-500 hover:text-red-400" title="Delete Profile">
               <Trash2 className="w-5 h-5" />
             </button>
           </div>
@@ -192,28 +279,54 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
   
   const [uploadingThumb, setUploadingThumb] = useState(false)
   const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [updatingThumbId, setUpdatingThumbId] = useState<string | null>(null)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'thumbnail'|'video') => {
-    const file = e.target.files?.[0]
+    let file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 4.5 * 1024 * 1024) {
-      if (type === 'video') {
-        alert(
-          'Video file is larger than 4.5MB (Vercel serverless upload limit).\n\n' +
-          'For large videos:\n' +
-          '1. Paste an unlisted YouTube link, Google Drive direct link, or CDN link into the "Video URL" box below.\n' +
-          '2. The player will automatically play it in full HD!'
-        )
-      } else {
-        alert('Thumbnail image exceeds 4.5MB limit. Please choose a smaller image (under 4.5MB).')
+    if (type === 'thumbnail') {
+      setUploadingThumb(true)
+      try {
+        file = await compressImage(file)
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        })
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(text || `Server error (${res.status})`)
+        }
+        const data = await res.json()
+        if (data.success && data.url) {
+          setThumbnailUrl(data.url)
+        } else {
+          alert('Upload failed: ' + (data.error || 'Server error'))
+        }
+      } catch (error: any) {
+        alert('Upload error: ' + (error.message || 'Network error'))
+      } finally {
+        setUploadingThumb(false)
+        e.target.value = ''
       }
       return
     }
 
-    if (type === 'thumbnail') setUploadingThumb(true)
-    if (type === 'video') setUploadingVideo(true)
+    if (file.size > 4.5 * 1024 * 1024) {
+      alert(
+        'Video file is larger than 4.5MB (Vercel serverless upload limit).\n\n' +
+        'For large videos:\n' +
+        '1. Paste an unlisted YouTube link, Google Drive direct link, or CDN link into the "Video URL" box below.\n' +
+        '2. The player will automatically play it in full HD!'
+      )
+      e.target.value = ''
+      return
+    }
 
+    setUploadingVideo(true)
     const formData = new FormData()
     formData.append('file', file)
 
@@ -231,16 +344,47 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
       }
       const data = await res.json()
       if (data.success && data.url) {
-        if (type === 'thumbnail') setThumbnailUrl(data.url)
-        if (type === 'video') setVideoUrl(data.url)
+        setVideoUrl(data.url)
       } else {
         alert('Upload failed: ' + (data.error || 'Server error'))
       }
     } catch (error: any) {
       alert('Upload error: ' + (error.message || 'Network error'))
     } finally {
-      if (type === 'thumbnail') setUploadingThumb(false)
-      if (type === 'video') setUploadingVideo(false)
+      setUploadingVideo(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleUpdateThumbnail = async (e: React.ChangeEvent<HTMLInputElement>, videoId: string) => {
+    let file = e.target.files?.[0]
+    if (!file) return
+
+    setUpdatingThumbId(videoId)
+    try {
+      file = await compressImage(file)
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `Server error (${res.status})`)
+      }
+      const data = await res.json()
+      if (data.success && data.url) {
+        await updateVideo(videoId, { thumbnailUrl: data.url })
+      } else {
+        alert('Upload failed: ' + (data.error || 'Server error'))
+      }
+    } catch (error: any) {
+      alert('Failed to update photo: ' + (error.message || 'Network error'))
+    } finally {
+      setUpdatingThumbId(null)
+      e.target.value = ''
     }
   }
 
@@ -280,15 +424,39 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
             <label className="block text-sm mb-1 text-gray-400">Thumbnail (URL or Upload Image)</label>
             <div className="flex gap-2">
               <input 
-                required placeholder="Thumbnail URL or click Upload" className="p-2 bg-[#333] rounded flex-1 text-white border-none"
+                required placeholder="Thumbnail URL or click Upload" className="p-2 bg-[#333] rounded flex-1 text-white border-none text-sm"
                 value={thumbnailUrl} onChange={e => setThumbnailUrl(e.target.value)}
               />
               <input type="file" accept="image/*" className="hidden" id="thumb-upload" onChange={e => handleUpload(e, 'thumbnail')} />
               <label htmlFor="thumb-upload" className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded cursor-pointer whitespace-nowrap text-sm flex items-center gap-1.5 transition">
-                <Upload className="w-4 h-4" />
-                {uploadingThumb ? 'Uploading...' : 'Upload Photo'}
+                {uploadingThumb ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Upload className="w-4 h-4" />}
+                {uploadingThumb ? 'Compressing...' : 'Upload Photo'}
               </label>
             </div>
+            {thumbnailUrl && (
+              <div className="mt-2 flex items-center gap-3 bg-[#1a1a1a] p-2 rounded w-fit border border-gray-700">
+                <span className="text-xs text-gray-400">Preview:</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={thumbnailUrl} 
+                  alt="Thumbnail preview" 
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    if (!target.src.endsWith('/placeholder.png')) {
+                      target.src = '/placeholder.png'
+                    }
+                  }}
+                  className="w-24 aspect-video object-cover rounded border border-gray-600 bg-black"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setThumbnailUrl('')} 
+                  className="text-xs text-red-400 hover:text-red-300 ml-2"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex-1">
             <label className="block text-sm mb-1 text-gray-400">Video (URL, YouTube or Upload Video)</label>
@@ -299,7 +467,7 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
               />
               <input type="file" accept="video/*" className="hidden" id="video-upload" onChange={e => handleUpload(e, 'video')} />
               <label htmlFor="video-upload" className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded cursor-pointer whitespace-nowrap text-sm flex items-center gap-1.5 transition">
-                <Upload className="w-4 h-4" />
+                {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Upload className="w-4 h-4" />}
                 {uploadingVideo ? 'Uploading...' : 'Upload Video'}
               </label>
             </div>
@@ -347,8 +515,42 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {videos.map(v => (
           <div key={v.id} className="bg-[#222] p-4 rounded flex gap-4 items-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={v.thumbnailUrl || '/placeholder.png'} alt={v.title} className="w-32 aspect-video object-cover rounded bg-black shrink-0" />
+            {/* Thumbnail with Change Photo overlay */}
+            <div className="relative group/thumb w-32 aspect-video shrink-0 rounded overflow-hidden bg-black">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src={v.thumbnailUrl || '/placeholder.png'} 
+                alt={v.title} 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  if (!target.src.endsWith('/placeholder.png')) {
+                    target.src = '/placeholder.png'
+                  }
+                }}
+                className="w-full h-full object-cover" 
+              />
+              <input 
+                type="file" 
+                accept="image/*" 
+                id={`change-thumb-${v.id}`} 
+                className="hidden" 
+                disabled={updatingThumbId === v.id}
+                onChange={(e) => handleUpdateThumbnail(e, v.id)} 
+              />
+              <label 
+                htmlFor={`change-thumb-${v.id}`}
+                className="absolute inset-0 bg-black/80 opacity-0 group-hover/thumb:opacity-100 flex flex-col items-center justify-center cursor-pointer transition text-[11px] text-white font-medium p-1 text-center"
+                title="Click to replace photo"
+              >
+                {updatingThumbId === v.id ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-[#E50914] mb-1" />
+                ) : (
+                  <Upload className="w-5 h-5 text-[#E50914] mb-1" />
+                )}
+                <span>{updatingThumbId === v.id ? 'Updating...' : 'Change Photo'}</span>
+              </label>
+            </div>
+
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold truncate">{v.title}</h3>
@@ -384,18 +586,33 @@ function VideosTab({ videos, categories }: { videos: any[], categories: any[] })
                 })}
               </div>
 
-              <button 
-                type="button"
-                onClick={() => handleToggleFeatured(v)}
-                className={`mt-2 text-xs flex items-center gap-1 px-2 py-1 rounded transition ${
-                  v.genre === 'featured' 
-                    ? 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30' 
-                    : 'bg-[#333] text-gray-400 hover:text-white'
-                }`}
-              >
-                <Star className="w-3.5 h-3.5" />
-                {v.genre === 'featured' ? 'Remove from Hero' : 'Feature on Hero'}
-              </button>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <button 
+                  type="button"
+                  onClick={() => handleToggleFeatured(v)}
+                  className={`text-xs flex items-center gap-1 px-2 py-1 rounded transition ${
+                    v.genre === 'featured' 
+                      ? 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30' 
+                      : 'bg-[#333] text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Star className="w-3.5 h-3.5" />
+                  {v.genre === 'featured' ? 'Remove from Hero' : 'Feature on Hero'}
+                </button>
+
+                <label 
+                  htmlFor={`change-thumb-${v.id}`}
+                  className="text-xs flex items-center gap-1 px-2 py-1 rounded bg-[#333] hover:bg-gray-700 text-gray-300 hover:text-white cursor-pointer transition"
+                  title="Upload a new photo for this video"
+                >
+                  {updatingThumbId === v.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E50914]" />
+                  ) : (
+                    <ImageIcon className="w-3.5 h-3.5 text-[#E50914]" />
+                  )}
+                  <span>{updatingThumbId === v.id ? 'Updating...' : 'Change Photo'}</span>
+                </label>
+              </div>
             </div>
             <button onClick={() => deleteVideo(v.id)} className="text-red-500 hover:text-red-400 p-2 shrink-0" title="Delete video">
               <Trash2 className="w-5 h-5" />
