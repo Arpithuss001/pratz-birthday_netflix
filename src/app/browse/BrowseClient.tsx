@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import VideoPlayer from '@/components/VideoPlayer'
-import { Play, Info, ChevronLeft, ChevronRight, X, Maximize2, Sparkles } from 'lucide-react'
+import { Play, Info, ChevronLeft, ChevronRight, X, Maximize2, Sparkles, Volume2, VolumeX, RotateCcw } from 'lucide-react'
 import { useSound } from '@/hooks/useSound'
 import { useAppStore } from '@/lib/store'
 
@@ -21,6 +21,18 @@ type Category = {
   id: string
   name: string
   videos: { video: Video }[]
+}
+
+function getGoogleDriveId(url: string): string | null {
+  if (!url) return null
+  const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+  return match ? match[1] : null
+}
+
+function getGoogleDriveStreamUrl(url: string): string | null {
+  const driveId = getGoogleDriveId(url)
+  if (!driveId) return null
+  return `https://drive.usercontent.google.com/download?id=${driveId}&export=download&confirm=t`
 }
 
 function CategoryRow({ 
@@ -161,9 +173,62 @@ export default function BrowseClient({
   const { playPop } = useSound()
   const fontFamily = useAppStore((state) => state.fontFamily)
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
+  const heroVideoRef = useRef<HTMLVideoElement>(null)
+  const [isHeroMuted, setIsHeroMuted] = useState(true)
+  const [isHeroVideoPlaying, setIsHeroVideoPlaying] = useState(false)
+  const [heroVideoError, setHeroVideoError] = useState(false)
 
   // Only use a video as hero if it is explicitly marked as 'featured'
   const explicitFeaturedVideo = allVideos.find(v => v.genre === 'featured')
+
+  // Identify featured video URL
+  const featuredVideoUrl = explicitFeaturedVideo?.videoUrl?.trim() || 'https://drive.google.com/file/d/11DLG-eMqQk7Pfh-E44mpZkLqJIWEx7nK/view?usp=sharing'
+  const featuredDriveId = getGoogleDriveId(featuredVideoUrl)
+  const isTargetPratzVideo = featuredDriveId === '11DLG-eMqQk7Pfh-E44mpZkLqJIWEx7nK' || featuredVideoUrl.includes('11DLG-eMqQk7Pfh-E44mpZkLqJIWEx7nK')
+  const directDriveStream = featuredDriveId ? getGoogleDriveStreamUrl(featuredVideoUrl) : null
+
+  // Ensure autoplay on mount & video updates
+  useEffect(() => {
+    if (heroVideoRef.current) {
+      heroVideoRef.current.defaultMuted = true
+      heroVideoRef.current.muted = isHeroMuted
+      const playPromise = heroVideoRef.current.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {})
+      }
+    }
+  }, [explicitFeaturedVideo, isHeroMuted])
+
+  // Resume background video when modal closes, pause when modal opens
+  useEffect(() => {
+    if (heroVideoRef.current) {
+      if (selectedVideo) {
+        heroVideoRef.current.pause()
+      } else {
+        heroVideoRef.current.play().catch(() => {})
+      }
+    }
+  }, [selectedVideo])
+
+  const toggleHeroMute = () => {
+    playPop()
+    if (heroVideoRef.current) {
+      const nextMuted = !isHeroMuted
+      heroVideoRef.current.muted = nextMuted
+      setIsHeroMuted(nextMuted)
+      if (!nextMuted) {
+        heroVideoRef.current.play().catch(() => {})
+      }
+    }
+  }
+
+  const handleHeroReplay = () => {
+    playPop()
+    if (heroVideoRef.current) {
+      heroVideoRef.current.currentTime = 0
+      heroVideoRef.current.play().catch(() => {})
+    }
+  }
 
   // Close modal on Escape key
   useEffect(() => {
@@ -201,47 +266,112 @@ export default function BrowseClient({
 
       {/* Hero Banner Section */}
       {explicitFeaturedVideo ? (
-        <div className="relative w-full h-[70vh] md:h-[80vh]">
-          <div className="absolute inset-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={explicitFeaturedVideo.thumbnailUrl || '/placeholder.png'} 
-              alt={explicitFeaturedVideo.title}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                if (!target.src.endsWith('/placeholder.png')) {
-                  target.src = '/placeholder.png'
-                }
-              }}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/30 to-transparent" />
-          </div>
+        <div className="relative w-full h-[70vh] md:h-[85vh] overflow-hidden bg-black select-none">
+          {/* Base Poster Photo (Always renders as initial/fallback layer) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src={explicitFeaturedVideo.thumbnailUrl || '/placeholder.png'} 
+            alt={explicitFeaturedVideo.title}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              if (!target.src.endsWith('/placeholder.png')) {
+                target.src = '/placeholder.png'
+              }
+            }}
+            className="w-full h-full object-cover absolute inset-0 z-0"
+          />
 
+          {/* Background Video Player */}
+          {!heroVideoError && (
+            <video
+              ref={heroVideoRef}
+              autoPlay
+              loop
+              muted={isHeroMuted}
+              playsInline
+              preload="auto"
+              onPlaying={() => setIsHeroVideoPlaying(true)}
+              onLoadedData={() => setIsHeroVideoPlaying(true)}
+              onError={() => setHeroVideoError(true)}
+              className={`w-full h-full object-cover absolute inset-0 z-0 transition-opacity duration-1000 ${
+                isHeroVideoPlaying ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              {/* If target video is the birthday girl's video, prioritize local optimized 6MB 1080p stream */}
+              {isTargetPratzVideo && <source src="/hero-video.mp4" type="video/mp4" />}
+              {directDriveStream && <source src={directDriveStream} type="video/mp4" />}
+              {featuredVideoUrl && !directDriveStream && <source src={featuredVideoUrl} type="video/mp4" />}
+              <source src="/hero-video.mp4" type="video/mp4" />
+            </video>
+          )}
+
+          {/* Cinematic Netflix Gradients */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/40 to-transparent z-[1] pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/20 to-transparent z-[1] pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-transparent z-[1] pointer-events-none" />
+
+          {/* Hero Meta Content */}
           <div className="absolute top-[25%] md:top-[35%] left-4 md:left-12 max-w-2xl z-10">
-            <span className="text-xs md:text-sm uppercase tracking-widest text-[#E50914] font-extrabold bg-black/60 px-3 py-1 rounded-sm border border-[#E50914]/30 mb-3 inline-block">
-              FEATURED
-            </span>
-            <h1 className={`text-4xl md:text-7xl font-extrabold mb-4 drop-shadow-xl ${fontFamily}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs md:text-sm uppercase tracking-widest text-[#E50914] font-extrabold bg-black/60 px-3 py-1 rounded-sm border border-[#E50914]/30 inline-block shadow">
+                FEATURED
+              </span>
+              {isHeroVideoPlaying && (
+                <span className="text-[11px] font-bold text-white bg-red-600/80 px-2 py-0.5 rounded flex items-center gap-1.5 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  PLAYING VIDEO
+                </span>
+              )}
+            </div>
+
+            <h1 className={`text-4xl md:text-7xl font-extrabold mb-4 drop-shadow-2xl ${fontFamily}`}>
               {explicitFeaturedVideo.title}
             </h1>
-            <p className="text-base md:text-lg text-white/90 drop-shadow mb-6 line-clamp-3">
+            <p className="text-base md:text-lg text-white/90 drop-shadow-md mb-6 line-clamp-3 leading-relaxed">
               {explicitFeaturedVideo.description}
             </p>
-            <div className="flex gap-4">
+            <div className="flex gap-4 items-center flex-wrap">
               <button 
-                onClick={() => { playPop(); setSelectedVideo(explicitFeaturedVideo); }}
-                className="flex items-center gap-2 bg-white text-black px-6 py-2.5 md:px-8 md:py-3 rounded font-bold hover:bg-white/80 transition-colors shadow-lg"
+                onClick={() => { 
+                  playPop(); 
+                  heroVideoRef.current?.pause();
+                  setSelectedVideo(explicitFeaturedVideo); 
+                }}
+                className="flex items-center gap-2 bg-white text-black px-6 py-2.5 md:px-8 md:py-3 rounded font-bold hover:bg-white/80 transition-all shadow-lg hover:scale-105 cursor-pointer"
               >
-                <Play className="fill-black w-5 h-5" /> Play
+                <Play className="fill-black w-5 h-5" /> Play Full Video
               </button>
               <button 
                 onClick={() => { playPop(); router.push(`/watch/${explicitFeaturedVideo.id}`); }}
-                className="flex items-center gap-2 bg-gray-600/70 text-white px-6 py-2.5 md:px-8 md:py-3 rounded font-bold hover:bg-gray-600/50 transition-colors backdrop-blur-sm"
+                className="flex items-center gap-2 bg-gray-600/70 text-white px-6 py-2.5 md:px-8 md:py-3 rounded font-bold hover:bg-gray-600/50 transition-all backdrop-blur-sm shadow-md hover:scale-105 cursor-pointer"
               >
                 <Maximize2 className="w-5 h-5" /> Fullscreen
               </button>
+            </div>
+          </div>
+
+          {/* Sound, Replay & Quality Badges (Bottom Right like Netflix) */}
+          <div className="absolute right-4 md:right-12 bottom-8 md:bottom-12 z-20 flex items-center gap-2.5 sm:gap-3">
+            <button
+              onClick={handleHeroReplay}
+              className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 hover:border-white text-white flex items-center justify-center transition-all backdrop-blur-md shadow-xl hover:scale-110 active:scale-95 cursor-pointer"
+              title="Replay Video"
+            >
+              <RotateCcw className="w-4 h-4 md:w-5 md:h-5" />
+            </button>
+            <button
+              onClick={toggleHeroMute}
+              className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 hover:border-white text-white flex items-center justify-center transition-all backdrop-blur-md shadow-xl hover:scale-110 active:scale-95 cursor-pointer"
+              title={isHeroMuted ? "Unmute Background Sound" : "Mute Sound"}
+            >
+              {isHeroMuted ? (
+                <VolumeX className="w-5 h-5 text-gray-300" />
+              ) : (
+                <Volume2 className="w-5 h-5 text-red-500 animate-pulse" />
+              )}
+            </button>
+            <div className="hidden sm:flex bg-black/60 border-l-2 border-[#E50914] px-3 py-1.5 text-xs font-bold tracking-wider text-white backdrop-blur-md rounded-r">
+              BIRTHDAY SPECIAL
             </div>
           </div>
         </div>
