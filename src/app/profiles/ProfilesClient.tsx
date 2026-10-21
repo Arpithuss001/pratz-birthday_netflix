@@ -1,8 +1,10 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { useSound } from '@/hooks/useSound'
+import { enterFullscreen } from '@/lib/fullscreen'
 import { PlusCircle } from 'lucide-react'
 
 type Profile = {
@@ -16,9 +18,23 @@ export default function ProfilesClient({ initialProfiles }: { initialProfiles: P
   const { playPop } = useSound()
   const setCurrentProfile = useAppStore((state) => state.setCurrentProfile)
 
+  useEffect(() => {
+    enterFullscreen()
+    const handleGesture = () => {
+      enterFullscreen()
+    }
+    window.addEventListener('click', handleGesture, { once: true })
+    window.addEventListener('touchstart', handleGesture, { once: true })
+    return () => {
+      window.removeEventListener('click', handleGesture)
+      window.removeEventListener('touchstart', handleGesture)
+    }
+  }, [])
+
   const handleSelect = (profile: Profile) => {
     playPop()
     setCurrentProfile(profile)
+    enterFullscreen()
     router.push('/browse')
   }
 

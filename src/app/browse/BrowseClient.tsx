@@ -175,7 +175,7 @@ export default function BrowseClient({
   const fontFamily = useAppStore((state) => state.fontFamily)
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
   const heroVideoRef = useRef<HTMLVideoElement>(null)
-  const [isHeroMuted, setIsHeroMuted] = useState(true)
+  const [isHeroMuted, setIsHeroMuted] = useState(false)
   const [isHeroVideoPlaying, setIsHeroVideoPlaying] = useState(false)
   const [heroVideoError, setHeroVideoError] = useState(false)
 
@@ -188,28 +188,37 @@ export default function BrowseClient({
   const isTargetPratzVideo = featuredDriveId === '11DLG-eMqQk7Pfh-E44mpZkLqJIWEx7nK' || featuredVideoUrl.includes('11DLG-eMqQk7Pfh-E44mpZkLqJIWEx7nK')
   const directDriveStream = featuredDriveId ? getGoogleDriveStreamUrl(featuredVideoUrl) : null
 
-  // Ensure autoplay on mount & video updates
+  // Ensure autoplay on mount & video updates (unmuted by default when profile opens)
   useEffect(() => {
     if (heroVideoRef.current) {
-      heroVideoRef.current.defaultMuted = true
+      heroVideoRef.current.defaultMuted = isHeroMuted
       heroVideoRef.current.muted = isHeroMuted
       const playPromise = heroVideoRef.current.play()
       if (playPromise !== undefined) {
-        playPromise.catch(() => {})
+        playPromise.catch(() => {
+          // If browser policy blocks unmuted autoplay without gesture, start muted first,
+          // then unmute on the user's first gesture
+          if (!isHeroMuted && heroVideoRef.current) {
+            heroVideoRef.current.muted = true
+            heroVideoRef.current.play().catch(() => {})
+          }
+        })
       }
     }
   }, [explicitFeaturedVideo, isHeroMuted])
 
-  // Resume background video when modal closes, pause when modal opens
+  // Resume background video and unmute when modal closes; pause and mute when modal opens (video below is playing)
   useEffect(() => {
     if (heroVideoRef.current) {
       if (selectedVideo) {
         heroVideoRef.current.pause()
+        heroVideoRef.current.muted = true
       } else {
+        heroVideoRef.current.muted = isHeroMuted
         heroVideoRef.current.play().catch(() => {})
       }
     }
-  }, [selectedVideo])
+  }, [selectedVideo, isHeroMuted])
 
   const toggleHeroMute = () => {
     playPop()
@@ -240,10 +249,15 @@ export default function BrowseClient({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Auto-fullscreen on first user tap/click on website
+  // Auto-fullscreen & ensure music is unmuted on first gesture
   useEffect(() => {
+    enterFullscreen()
     const handleFirstGesture = () => {
       enterFullscreen()
+      if (heroVideoRef.current && !selectedVideo) {
+        heroVideoRef.current.muted = isHeroMuted
+        heroVideoRef.current.play().catch(() => {})
+      }
     }
     window.addEventListener('click', handleFirstGesture, { once: true })
     window.addEventListener('touchstart', handleFirstGesture, { once: true })
@@ -251,7 +265,7 @@ export default function BrowseClient({
       window.removeEventListener('click', handleFirstGesture)
       window.removeEventListener('touchstart', handleFirstGesture)
     }
-  }, [])
+  }, [selectedVideo, isHeroMuted])
 
   if (allVideos.length === 0) {
     return (
@@ -421,7 +435,14 @@ export default function BrowseClient({
               </a>
               {allVideos.length > 0 && (
                 <button
-                  onClick={() => { playPop(); setSelectedVideo(allVideos[0]); }}
+                  onClick={() => { 
+                    playPop(); 
+                    if (heroVideoRef.current) {
+                      heroVideoRef.current.pause();
+                      heroVideoRef.current.muted = true;
+                    }
+                    setSelectedVideo(allVideos[0]); 
+                  }}
                   className="flex items-center gap-2 bg-white/20 text-white px-6 py-3 rounded font-bold hover:bg-white/30 transition-colors backdrop-blur-sm"
                 >
                   <Sparkles className="w-5 h-5 text-yellow-400" /> Play First Video
@@ -438,7 +459,13 @@ export default function BrowseClient({
           <CategoryRow
             key={category.id}
             category={category}
-            onPlayVideo={(video) => setSelectedVideo(video)}
+            onPlayVideo={(video) => {
+              if (heroVideoRef.current) {
+                heroVideoRef.current.pause()
+                heroVideoRef.current.muted = true
+              }
+              setSelectedVideo(video)
+            }}
           />
         ))}
 
@@ -455,7 +482,13 @@ export default function BrowseClient({
                 name: categories.length === 0 ? 'Birthday Videos' : 'More Birthday Videos',
                 videos: unassignedVideos.map(v => ({ video: v }))
               }}
-              onPlayVideo={(video) => setSelectedVideo(video)}
+              onPlayVideo={(video) => {
+                if (heroVideoRef.current) {
+                  heroVideoRef.current.pause()
+                  heroVideoRef.current.muted = true
+                }
+                setSelectedVideo(video)
+              }}
             />
           )
         })()}

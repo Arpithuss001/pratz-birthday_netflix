@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSound } from '@/hooks/useSound'
+import { enterFullscreen } from '@/lib/fullscreen'
 
 export default function LandingPage() {
   const [email, setEmail] = useState('')
@@ -15,6 +16,7 @@ export default function LandingPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
     playPop()
+    enterFullscreen()
     setShowIntro(true)
     
     if (audioRef.current) {
