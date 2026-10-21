@@ -7,6 +7,7 @@ import VideoPlayer from '@/components/VideoPlayer'
 import { Play, Info, ChevronLeft, ChevronRight, X, Maximize2, Sparkles, Volume2, VolumeX, RotateCcw } from 'lucide-react'
 import { useSound } from '@/hooks/useSound'
 import { useAppStore } from '@/lib/store'
+import { enterFullscreen } from '@/lib/fullscreen'
 
 type Video = {
   id: string
@@ -107,7 +108,7 @@ function CategoryRow({
           {category.videos.map(({ video }) => (
             <div
               key={video.id}
-              onClick={() => { playPop(); onPlayVideo(video); }}
+              onClick={() => { playPop(); enterFullscreen(); onPlayVideo(video); }}
               className="flex-none w-[260px] sm:w-[290px] md:w-[330px] aspect-video relative rounded-md overflow-hidden cursor-pointer group bg-[#1f1f1f] shadow-lg transition-all duration-300 hover:scale-105 hover:z-20 hover:shadow-2xl hover:ring-2 hover:ring-[#E50914]"
             >
               {/* Thumbnail */}
@@ -239,6 +240,19 @@ export default function BrowseClient({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Auto-fullscreen on first user tap/click on website
+  useEffect(() => {
+    const handleFirstGesture = () => {
+      enterFullscreen()
+    }
+    window.addEventListener('click', handleFirstGesture, { once: true })
+    window.addEventListener('touchstart', handleFirstGesture, { once: true })
+    return () => {
+      window.removeEventListener('click', handleFirstGesture)
+      window.removeEventListener('touchstart', handleFirstGesture)
+    }
+  }, [])
+
   if (allVideos.length === 0) {
     return (
       <div className="min-h-screen bg-[#141414] text-white">
@@ -334,6 +348,7 @@ export default function BrowseClient({
               <button 
                 onClick={() => { 
                   playPop(); 
+                  enterFullscreen();
                   heroVideoRef.current?.pause();
                   setSelectedVideo(explicitFeaturedVideo); 
                 }}
@@ -342,7 +357,11 @@ export default function BrowseClient({
                 <Play className="fill-black w-5 h-5" /> Play Full Video
               </button>
               <button 
-                onClick={() => { playPop(); router.push(`/watch/${explicitFeaturedVideo.id}`); }}
+                onClick={() => { 
+                  playPop(); 
+                  enterFullscreen();
+                  router.push(`/watch/${explicitFeaturedVideo.id}`); 
+                }}
                 className="flex items-center gap-2 bg-gray-600/70 text-white px-6 py-2.5 md:px-8 md:py-3 rounded font-bold hover:bg-gray-600/50 transition-all backdrop-blur-sm shadow-md hover:scale-105 cursor-pointer"
               >
                 <Maximize2 className="w-5 h-5" /> Fullscreen
