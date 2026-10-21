@@ -8,7 +8,6 @@ import { Play, Info, ChevronLeft, ChevronRight, X, Maximize2, Sparkles, Volume2,
 import { useSound } from '@/hooks/useSound'
 import { useAppStore } from '@/lib/store'
 import { enterFullscreen } from '@/lib/fullscreen'
-import BirthdayBlast from '@/components/BirthdayBlast'
 
 type Video = {
   id: string
@@ -292,7 +291,6 @@ export default function BrowseClient({
   return (
     <div className="min-h-screen bg-[#141414] text-white overflow-x-hidden pb-24">
       <Navbar />
-      <BirthdayBlast />
 
       {/* Hero Banner Section */}
       {explicitFeaturedVideo ? (
