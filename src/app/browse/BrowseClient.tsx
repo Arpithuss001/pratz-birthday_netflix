@@ -278,7 +278,7 @@ export default function BrowseClient({
                 target.src = '/placeholder.png'
               }
             }}
-            className="w-full h-full object-cover absolute inset-0 z-0"
+            className="w-full h-full object-cover object-top absolute inset-0 z-0"
           />
 
           {/* Background Video Player */}
@@ -293,7 +293,7 @@ export default function BrowseClient({
               onPlaying={() => setIsHeroVideoPlaying(true)}
               onLoadedData={() => setIsHeroVideoPlaying(true)}
               onError={() => setHeroVideoError(true)}
-              className={`w-full h-full object-cover absolute inset-0 z-0 transition-opacity duration-1000 ${
+              className={`w-full h-full object-cover object-top absolute inset-0 z-0 transition-opacity duration-1000 ${
                 isHeroVideoPlaying ? 'opacity-100' : 'opacity-0'
               }`}
             >
